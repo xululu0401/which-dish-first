@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>先做哪道菜</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; background: #f4efe6; color: #2a241c; line-height: 1.6; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 20px 14px 40px; }
+  h1 { font-size: 26px; letter-spacing: 1px; }
+  .lead { color: #6a5f4f; font-size: 14px; margin: 4px 0 14px; }
+  .card { background: #fffdf8; border-radius: 8px; padding: 14px; border: 1px solid #e0d6c3; margin-bottom: 14px; min-width: 0; }
+  .card h2 { font-size: 15px; color: #6a5f4f; font-weight: 600; margin-bottom: 8px; overflow-wrap: anywhere; }
+  input, select { font: inherit; font-size: 14px; padding: 4px 6px; border: 1px solid #c2b59c; border-radius: 5px; width: 100%; min-width: 0; background: #fff; font-variant-numeric: tabular-nums; }
+  input[type=checkbox] { width: auto; }
+  .bad { border-color: #b23a2b !important; background: #fff0ec !important; }
+  label { font-size: 12px; color: #776b59; display: block; }
+  button { font: inherit; font-size: 13px; padding: 6px 11px; border-radius: 5px; border: 1px solid #7a3e1d; background: #7a3e1d; color: #fff; cursor: pointer; }
+  button.ghost { background: #fff; color: #7a3e1d; }
+  button.x { padding: 2px 8px; background: #fff; color: #8a2a1b; border-color: #d9b3a8; }
+  .row4 { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .presets, .dl { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .err { display: none; background: #fff0ec; border: 1px solid #e0b2a7; color: #8a2a1b; border-radius: 8px; padding: 10px 12px; margin-bottom: 14px; overflow-wrap: anywhere; }
+  .muted { color: #776b59; font-size: 12px; }
+  /* 菜单：一行一道菜，像手写的菜单卡 */
+  .menu { display: grid; gap: 8px; }
+  .dish { display: grid; grid-template-columns: 1.6fr 1fr 0.8fr 0.8fr 0.8fr auto auto; gap: 8px; align-items: end; border-bottom: 1px dashed #e0d6c3; padding-bottom: 8px; }
+  .dish .w { display: flex; gap: 4px; align-items: center; font-size: 12px; color: #776b59; white-space: nowrap; padding-bottom: 6px; }
+  @media (max-width: 640px) { .dish { grid-template-columns: 1fr 1fr 1fr; } .dish .nm { grid-column: 1 / -1; } }
+  /* 结论 */
+  #summary { font-size: 20px; font-weight: 700; overflow-wrap: anywhere; margin-bottom: 8px; }
+  #facts { margin: 8px 0 0 18px; font-size: 14px; } #facts li { margin: 3px 0; overflow-wrap: anywhere; }
+  /* 泳道：你的手 / 每个灶眼 / 电饭煲 / 烤箱，横轴是钟点 */
+  .lanes { position: relative; }
+  .lane { display: grid; grid-template-columns: 64px 1fr; align-items: center; gap: 6px; margin: 4px 0; }
+  .lane .ln { font-size: 12px; color: #6a5f4f; text-align: right; white-space: nowrap; }
+  .track { position: relative; height: 30px; background: repeating-linear-gradient(90deg, #f6f1e7 0 calc(var(--u) - 1px), #e7dfcf calc(var(--u) - 1px) var(--u)); border-radius: 4px; overflow: hidden; }
+  .blk { position: absolute; top: 2px; bottom: 2px; border-radius: 3px; font-size: 11px; color: #fff; padding: 0 3px; overflow: hidden; white-space: nowrap; text-overflow: clip; line-height: 26px; }
+  .blk.prep { background: #8a6d3b; } .blk.fire { background: #c2551f; } .blk.calm { background: repeating-linear-gradient(45deg, #d9894f 0 6px, #c9763c 6px 12px); }
+  .blk.serve { background: #2a241c; width: 3px !important; padding: 0; border-radius: 0; top: 0; bottom: 0; }
+  .taxis { display: grid; grid-template-columns: 64px 1fr; gap: 6px; }
+  .taxis div:last-child { display: flex; justify-content: space-between; font-size: 12px; color: #776b59; font-variant-numeric: tabular-nums; }
+  .leg { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: #6a5f4f; margin-top: 6px; }
+  .leg i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -1px; margin-right: 4px; }
+  /* 步骤单：几点做什么，可勾 */
+  ol.steps { list-style: none; display: grid; gap: 4px; }
+  ol.steps li { display: grid; grid-template-columns: minmax(56px, max-content) 1fr; gap: 8px; font-size: 14px; padding: 4px 0; border-bottom: 1px dotted #e7dfcf; overflow-wrap: anywhere; }
+  ol.steps li b { font-variant-numeric: tabular-nums; }
+  ol.steps li.fire span { color: #9a3d12; }
+  /* 上桌温度表 */
+  .tw { overflow-x: auto; }
+  table.t { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+  table.t th, table.t td { padding: 5px 6px; border-bottom: 1px solid #ece4d4; text-align: right; white-space: nowrap; }
+  table.t th:first-child, table.t td:first-child { text-align: left; white-space: normal; overflow-wrap: anywhere; }
+  table.t th { white-space: normal; vertical-align: bottom; min-width: 64px; }
+  table.t th:first-child, table.t td:first-child { min-width: 84px; }
+  @media (max-width: 480px) { table.t { font-size: 12px; } table.t th, table.t td { padding: 4px 3px; } }
+  td.cold { color: #8a2a1b; font-weight: 700; } td.warm { color: #2f5d1f; }
+  #sugs { display: grid; gap: 8px; }
+  .sug { display: flex; gap: 10px; align-items: center; justify-content: space-between; border: 1px solid #ece4d4; border-radius: 6px; padding: 8px 10px; }
+  .sug span { min-width: 0; overflow-wrap: anywhere; font-size: 14px; } .sug button { flex: none; }
+  @media (max-width: 480px) { .sug { flex-direction: column; align-items: stretch; } #summary { font-size: 18px; } .lane, .taxis { grid-template-columns: 44px 1fr; } }
+  .how { font-size: 13px; color: #4b4237; } .how p { margin: 6px 0; } .how b { color: #2a241c; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>先做哪道菜</h1>
+  <p class="lead">一个人做一桌菜，最怕的是排骨还没好、炒青菜早就凉了。把每道菜备菜几分钟、上火几分钟、要不要守着、做好能放多久填进来，再填家里几个灶眼和几点开饭，这里排出几点进厨房、先做哪道、每一步几点做。默认是一顿虚构的家常晚饭。</p>
+
+  <div class="card">
+    <h2>灶台和开饭时间</h2>
+    <div class="row4">
+      <div><label for="serve">几点开饭</label><input id="serve" maxlength="5" placeholder="18:30"></div>
+      <div><label for="stoves">灶眼（个，电磁炉也算）</label><input id="stoves" inputmode="numeric" maxlength="2"></div>
+      <div><label for="cookers">电饭煲（个）</label><input id="cookers" inputmode="numeric" maxlength="2"></div>
+      <div><label for="ovens">烤箱（个）</label><input id="ovens" inputmode="numeric" maxlength="2"></div>
+    </div>
+    <div class="presets" id="presets"></div>
+  </div>
+
+  <div class="card">
+    <h2>今晚做什么（最多 6 道；「守着」= 上火时你得站在锅边，炒菜要守，炖汤、电饭煲不用）</h2>
+    <div class="menu" id="menu"></div>
+    <div class="presets"><button id="add" class="ghost">＋ 加一道菜</button></div>
+  </div>
+
+  <div class="err" id="error"></div>
+
+  <div id="out">
+    <div class="card">
+      <div id="summary"></div>
+      <div class="lanes" id="lanes"></div>
+      <div class="taxis"><div></div><div id="taxis"></div></div>
+      <div class="leg"><span><i style="background:#8a6d3b"></i>备菜（要动手）</span><span><i style="background:#c2551f"></i>上火、要守着</span><span><i style="background:#d9894f"></i>上火、不用守</span><span><i style="background:#2a241c"></i>开饭</span></div>
+      <ul id="facts"></ul>
+    </div>
+    <div class="card">
+      <h2>几点做什么</h2>
+      <ol class="steps" id="steps"></ol>
+    </div>
+    <div class="card">
+      <h2>上桌时热不热（三种做法并排）</h2>
+      <div class="tw"><table class="t" id="tbl"></table></div>
+      <p class="muted" style="margin-top:4px">「放」= 做好到开饭等了几分钟；超过你填的「能放几分钟」就算凉了，红字是凉了几分钟。</p>
+    </div>
+    <div class="card" id="sugCard">
+      <h2>换个条件看看（点一下代回去重排）</h2>
+      <div id="sugs"></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>带走结果</h2>
+    <div class="dl">
+      <button id="dlCSV">CSV 表格</button><button id="dlMD">Markdown 步骤单</button><button id="dlPNG">结果卡 PNG</button><button id="dlJSON" class="ghost">JSON 备份</button>
+      <button id="reset" class="ghost">恢复默认</button>
+    </div>
+    <p class="muted" style="margin-top:6px">输入自动保存在这台设备的浏览器里，刷新还在。</p>
+  </div>
+
+  <div class="card how">
+    <h2>怎么排的</h2>
+    <p><b>一道菜</b> = 先备菜（切、洗、腌，一口气做完）→ 再上火（占着一个灶眼、电饭煲或烤箱，直到出锅）。备好的料可以先放着等空灶。凉拌菜只有备菜一步。</p>
+    <p><b>你只有一双手</b>：备菜和要守着的上火，同一时刻只能做一件；不用守的（炖、焖、电饭煲、烤箱）你可以走开去切别的。</p>
+    <p><b>排法</b>：先让凉得最久的那道凉得最少；一样的话进厨房越晚越好；再一样就让凉的分钟数加起来最少、做好后等的分钟数加起来最少。从开饭时刻往回排，所有步骤的先后顺序都试一遍，取最好的。时间按整分钟。</p>
+    <p class="muted">不做：两个人一起做、几道菜共用一口锅、火候和味道、营养和花费。时长全是你自己填的估计，本页不提供菜谱。</p>
+  </div>
+</div>
+
+  <script>
+/* 先做哪道菜 · 计算核心（浏览器里挂 window.AppCore，Node 里 module.exports）
+ * 一个人做一桌菜：几道菜各要备菜几分钟、上火几分钟、火上要不要守着、做好能放几分钟不凉；
+ * 家里几个灶眼、几个电饭煲/烤箱；几点开饭。排出从几点开始、先做哪道、每一步几点做，让每道菜开饭时都还热着。
+ *
+ * 规则（本页的排法口径）：
+ *  - 时间按整分钟。你只有一双手：备菜、守着火的那段时间，你同时只能干一件事；不用守的（炖、焖、电饭煲、烤箱）你可以走开去干别的。
+ *  - 一道菜 = 先备菜（切、洗、腌，连续做完）→ 再上火（灶眼或电饭煲/烤箱，连续占着直到出锅）。备好的料可以先放着，等有空灶再下锅。
+ *    「不用火」的菜（凉拌）只有备菜一步，拌好就算做好。
+ *  - 做好到开饭之间等的分钟数超过「能放几分钟」就算「凉了」，超出的分钟数叫「凉了几分钟」。
+ *  - 排法目标按顺序比：① 凉得最久的那道凉的分钟数最少；② 进厨房的时间最晚（总共在厨房待的分钟数最少）；
+ *    ③ 各道凉的分钟数加起来最少；④ 各道做好后等的分钟数加起来最少。
+ *  - 求法：从开饭时刻往回排（倒着看，出锅变成「开始」，备菜在它之后）。倒过来后上面四个目标都随开始时刻变晚而变差，
+ *    这类目标的最优排法一定出现在「每一步都尽量往前塞」的排法里；本页把所有步骤先后顺序全部试一遍（相同的菜不重复试，
+ *    已经比当前最好差的就不往下试），每种顺序都往前塞，取最好的。节点上限 300 万，超了如实标注「未穷尽」。
+ *  不做：两个人一起做、菜和菜之间共用锅、火候与口味、营养、食材价格。 */
+(function (root) {
+  'use strict';
+  const DEVS = [
+    { id: 'stove', name: '灶眼' },
+    { id: 'cooker', name: '电饭煲' },
+    { id: 'oven', name: '烤箱' },
+    { id: 'none', name: '不用火' }
+  ];
+  const DEV_NAME = { stove: '灶', cooker: '电饭煲', oven: '烤箱', none: '不用火' };
+  const MAX_DISHES = 6;
+  const NODE_CAP = 3000000;
+
+  function q(l) { return '「' + l + '」'; }
+  function err(message, field) { const e = new Error(message); e.field = field; return e; }
+  function fmtInt(n) { return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+  function int(v, field, label, lo, hi) {
+    const s = String(v == null ? '' : v).trim();
+    if (s === '') throw err(label + '没填', field);
+    if (!/^\d+$/.test(s)) throw err(label + '要填 ' + lo + ' 到 ' + fmtInt(hi) + ' 的整数（现在是「' + s.slice(0, 12) + '」）', field);
+    const n = Number(s);
+    if (n < lo || n > hi) throw err(label + '要在 ' + lo + ' 到 ' + fmtInt(hi) + ' 之间（现在是 ' + fmtInt(n) + '）', field);
+    return n;
+  }
+  function parseClock(v) {
+    const s = String(v == null ? '' : v).trim().replace('：', ':');
+    const m = /^(\d{1,2}):(\d{2})$/.exec(s);
+    if (!m || Number(m[1]) > 23 || Number(m[2]) > 59) throw err('开饭时间要写成 18:30 这样（0:00 到 23:59）', 'serve');
+    return Number(m[1]) * 60 + Number(m[2]);
+  }
+  function clock(t) {
+    const d = Math.floor(t / 1440), m = ((t % 1440) + 1440) % 1440;
+    const s = String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+    return (d === -1 ? '前一天 ' : d < -1 ? '前 ' + (-d) + ' 天 ' : '') + s;
+  }
+  function mins(n) {
+    if (n < 60) return n + ' 分钟';
+    const h = Math.floor(n / 60), m = n % 60;
+    return h + ' 小时' + (m ? ' ' + m + ' 分' : '');
+  }
+
+  function parse(st) {
+    if (!st || typeof st !== 'object') throw err('没有输入', 'serve');
+    const T = parseClock(st.serve);
+    const caps = {
+      stove: int(st.stoves, 'stoves', '灶眼数', 1, 6),
+      cooker: int(st.cookers, 'cookers', '电饭煲个数', 0, 3),
+      oven: int(st.ovens, 'ovens', '烤箱个数', 0, 2)
+    };
+    const ds = Array.isArray(st.dishes) ? st.dishes : [];
+    if (ds.length < 1) throw err('至少要有一道菜', 'add');
+    if (ds.length > MAX_DISHES) throw err('最多 ' + MAX_DISHES + ' 道菜', 'add');
+    const names = {};
+    const dishes = ds.map((d, i) => {
+      const k = 'd' + i + '-';
+      const name = String(d.name == null ? '' : d.name).trim();
+      if (!name) throw err('第 ' + (i + 1) + ' 道菜没写名字', k + 'name');
+      if (name.length > 16) throw err('第 ' + (i + 1) + ' 道菜名字太长（最多 16 个字）', k + 'name');
+      if (names[name]) throw err('有两道菜都叫' + q(name) + '，改个名字好区分', k + 'name');
+      names[name] = 1;
+      const dev = String(d.dev);
+      if (!DEV_NAME[dev]) throw err(q(name) + '的「用什么做」没选', k + 'dev');
+      const prep = int(d.prep, k + 'prep', q(name) + '的备菜分钟', 0, 180);
+      let fire = 0;
+      if (dev !== 'none') fire = int(d.fire, k + 'fire', q(name) + '的上火分钟', 1, 600);
+      const hold = int(d.hold, k + 'hold', q(name) + '的能放几分钟', 0, 240);
+      if (dev !== 'none' && caps[dev] === 0) throw err(q(name) + '要用' + DEV_NAME[dev] + '，可家里' + DEV_NAME[dev] + '填的是 0 个', k + 'dev');
+      if (dev === 'none' && prep === 0) throw err(q(name) + '不用火、备菜又是 0 分钟，那它不用做；备菜至少填 1 分钟', k + 'prep');
+      const watch = dev !== 'none' && (d.watch === true || d.watch === 'true' || d.watch === 1);
+      return { i, name, prep, fire, dev, watch, hold };
+    });
+    return { T, caps, dishes, n: dishes.length };
+  }
+
+  /* ── 资源时间轴（倒着看的分钟格；cook=你的手，其余按台数计） ── */
+  function makeRes(H) { return { cook: new Int16Array(H), stove: new Int16Array(H), cooker: new Int16Array(H), oven: new Int16Array(H) }; }
+  /* 一步要占的资源：[资源名, ...] */
+  function needs(d, kind) {
+    if (kind === 'prep') return ['cook'];
+    const r = [d.dev];
+    if (d.watch) r.push('cook');
+    return r;
+  }
+  function capOf(caps, r) { return r === 'cook' ? 1 : caps[r]; }
+  function fits(R, caps, need, s, len) {
+    for (const r of need) { const a = R[r], c = capOf(caps, r); for (let t = s; t < s + len; t++) if (a[t] >= c) return false; }
+    return true;
+  }
+  function earliest(R, caps, need, est, len) {
+    let s = est;
+    while (!fits(R, caps, need, s, len)) s++;
+    return s;
+  }
+  function occupy(R, need, s, len, v) { for (const r of need) { const a = R[r]; for (let t = s; t < s + len; t++) a[t] += v; } }
+
+  /* 活动：每道菜 fire（len>0 时）与 prep；倒着看先 fire 后 prep */
+  function activities(P) {
+    const A = [];
+    P.dishes.forEach((d) => {
+      if (d.fire > 0) A.push({ dish: d.i, kind: 'fire', len: d.fire, need: needs(d, 'fire') });
+      if (d.prep > 0) A.push({ dish: d.i, kind: 'prep', len: d.prep, need: needs(d, 'prep') });
+    });
+    return A;
+  }
+  function horizon(P) { return P.dishes.reduce((s, d) => s + d.prep + d.fire, 0) + 2; }
+  function sig(d) { return [d.prep, d.fire, d.dev, d.watch ? 1 : 0, d.hold].join('/'); }
+  function lexLess(a, b) { for (let k = 0; k < a.length; k++) { if (a[k] < b[k]) return true; if (a[k] > b[k]) return false; } return false; }
+  function lexLE(a, b) { return !lexLess(b, a); }
+
+  /* 最优排法：倒排 + 串行排程枚举。
+   * 倒着看，四个目标都只随各步开始/结束时刻变晚而变差，所以最优解里一定有一个「主动排法」（没有哪一步能单独提前而不挤到别的）。
+   * 每个主动排法都能由「按开始时刻从早到晚」的顺序逐步往前塞得到，所以只试开始时刻不减的顺序（同一时刻按编号），
+   * 再去掉两道一模一样的菜互换的重复，已经不比当前最好好的就不往下试。 */
+  function solve(P) {
+    const A = activities(P), n = P.n, caps = P.caps;
+    const start = new Array(A.length).fill(-1);
+    const fireIdx = P.dishes.map((d) => A.findIndex((a) => a.dish === d.i && a.kind === 'fire'));
+    const prepIdx = P.dishes.map((d) => A.findIndex((a) => a.dish === d.i && a.kind === 'prep'));
+    const firstIdx = P.dishes.map((d, i) => (fireIdx[i] >= 0 ? fireIdx[i] : prepIdx[i]));
+    const sigs = P.dishes.map(sig);
+    const placed = [];
+    let best = null, bestStart = null, nodes = 0, capped = false;
+    const ref = new Array(n).fill(-1);
+    function partial(span) {
+      let mx = 0, sc = 0, sw = 0;
+      for (let i = 0; i < n; i++) if (ref[i] >= 0) { const c = Math.max(0, ref[i] - P.dishes[i].hold); if (c > mx) mx = c; sc += c; sw += ref[i]; }
+      return [mx, span, sc, sw];
+    }
+    function fits(need, s, len) {
+      const e = s + len;
+      for (const r of need) {
+        const c = capOf(caps, r);
+        const iv = placed.filter((p) => p.need.indexOf(r) >= 0 && p.s < e && p.e > s);
+        if (iv.length < c) continue;
+        const pts = [s].concat(iv.map((p) => p.s).filter((t) => t > s));
+        for (const t of pts) { let k = 0; for (const p of iv) if (p.s <= t && p.e > t) k++; if (k >= c) return false; }
+      }
+      return true;
+    }
+    function earliest(need, est, len) {
+      const cand = [est];
+      for (const p of placed) if (p.e > est && p.need.some((r) => need.indexOf(r) >= 0)) cand.push(p.e);
+      cand.sort((x, y) => x - y);
+      for (const t of cand) if (fits(need, t, len)) return t;
+      return -1; /* 不会发生：最后一个结束时刻之后一定空 */
+    }
+    function eligible(k) {
+      if (start[k] >= 0) return false;
+      const a = A[k];
+      if (a.kind === 'prep' && fireIdx[a.dish] >= 0 && start[fireIdx[a.dish]] < 0) return false;
+      if (k === firstIdx[a.dish]) for (let j = 0; j < a.dish; j++) if (sigs[j] === sigs[a.dish] && start[firstIdx[j]] < 0) return false;
+      return true;
+    }
+    function dfs(cnt, span, lastS, lastK) {
+      if (capped) return;
+      if (++nodes > NODE_CAP) { capped = true; return; }
+      if (best && !lexLess(partial(span), best)) return;
+      if (cnt === A.length) { best = partial(span); bestStart = start.slice(); return; }
+      for (let k = 0; k < A.length; k++) {
+        if (!eligible(k)) continue;
+        const a = A[k];
+        const est = a.kind === 'prep' && fireIdx[a.dish] >= 0 ? start[fireIdx[a.dish]] + A[fireIdx[a.dish]].len : 0;
+        const s = earliest(a.need, est, a.len);
+        if (s < lastS || (s === lastS && k < lastK)) continue;
+        const rec = { s, e: s + a.len, need: a.need };
+        placed.push(rec); start[k] = s;
+        const oldRef = ref[a.dish];
+        if (k === firstIdx[a.dish]) ref[a.dish] = s;
+        dfs(cnt + 1, Math.max(span, s + a.len), s, k);
+        ref[a.dish] = oldRef; start[k] = -1; placed.pop();
+        if (capped) return;
+      }
+    }
+    dfs(0, 0, -1, -1);
+    return { obj: best, plan: buildPlan(P, A, bestStart), nodes, capped };
+  }
+
+  /* 正着排的「顺手做法」（对照用）：按 order 生成活动列表，每步从 0 起尽早塞，最后把整张表平移到最后一道出锅 = 开饭 */
+  function forward(P, list) {
+    const A = activities(P), H = horizon(P) * 2 + 2, R = makeRes(H), caps = P.caps;
+    const end = {}; const st = new Array(A.length).fill(-1);
+    for (const [dish, kind] of list) {
+      const k = A.findIndex((a) => a.dish === dish && a.kind === kind);
+      if (k < 0) continue;
+      const a = A[k];
+      let est = 0;
+      if (kind === 'fire') { const pk = A.findIndex((x) => x.dish === dish && x.kind === 'prep'); if (pk >= 0) est = end[pk]; }
+      const s = earliest(R, caps, a.need, est, a.len);
+      occupy(R, a.need, s, a.len, 1); st[k] = s; end[k] = s + a.len;
+    }
+    const E = Math.max.apply(null, A.map((a, k) => st[k] + a.len));
+    /* 换成倒着看的开始 = E − 结束 */
+    const rev = A.map((a, k) => E - (st[k] + a.len));
+    return buildPlan(P, A, rev);
+  }
+  function orderOneByOne(P) { const L = []; P.dishes.forEach((d) => { L.push([d.i, 'prep']); L.push([d.i, 'fire']); }); return forward(P, L); }
+  function orderPrepFirst(P) { const L = []; P.dishes.forEach((d) => L.push([d.i, 'prep'])); P.dishes.forEach((d) => L.push([d.i, 'fire'])); return forward(P, L); }
+
+  /* 把倒排的开始时刻换成钟点计划 */
+  function buildPlan(P, A, rs) {
+    const T = P.T;
+    const steps = A.map((a, k) => ({ dish: a.dish, kind: a.kind, len: a.len, need: a.need, from: T - (rs[k] + a.len), to: T - rs[k] }));
+    let span = 0; steps.forEach((s) => { span = Math.max(span, T - s.from); });
+    const dishes = P.dishes.map((d) => {
+      const my = steps.filter((s) => s.dish === d.i);
+      const done = Math.max.apply(null, my.map((s) => s.to));
+      const wait = T - done, cold = Math.max(0, wait - d.hold);
+      const prep = my.find((s) => s.kind === 'prep') || null, fire = my.find((s) => s.kind === 'fire') || null;
+      return { i: d.i, name: d.name, done, wait, cold, hold: d.hold, prep, fire, dev: d.dev, watch: d.watch, idle: prep && fire ? fire.from - prep.to : 0 };
+    });
+    /* 给灶眼等编号：按开始时刻分配空闲的那一个 */
+    ['stove', 'cooker', 'oven'].forEach((dev) => {
+      const units = [];
+      steps.filter((s) => s.kind === 'fire' && s.need[0] === dev).sort((a, b) => a.from - b.from || a.dish - b.dish).forEach((s) => {
+        let u = units.findIndex((e) => e <= s.from);
+        if (u < 0) { u = units.length; units.push(0); }
+        units[u] = s.to; s.unit = u;
+      });
+    });
+    const maxCold = Math.max.apply(null, dishes.map((d) => d.cold));
+    const sumCold = dishes.reduce((s, d) => s + d.cold, 0), sumWait = dishes.reduce((s, d) => s + d.wait, 0);
+    const handsOn = steps.filter((s) => s.need.indexOf('cook') >= 0).reduce((x, s) => x + s.len, 0);
+    return { steps, dishes, span, startAt: T - span, maxCold, sumCold, sumWait, handsOn, obj: [maxCold, span, sumCold, sumWait] };
+  }
+
+  function calculate(st) {
+    const P = parse(st);
+    const S = solve(P);
+    const plan = S.plan;
+    const alt = [
+      { id: 'oneByOne', name: '按列表一道一道做（做完一道的备菜就下锅，再做下一道）', plan: orderOneByOne(P) },
+      { id: 'prepFirst', name: '先把所有菜都备好，再按列表挨个开火', plan: orderPrepFirst(P) }
+    ];
+    return { P, plan, nodes: S.nodes, capped: S.capped, alt, summary: summary(P, plan, S), facts: facts(P, plan, alt, S), order: orderText(P, plan) };
+  }
+
+  function orderText(P, plan) {
+    /* 下锅（或开始拌）的先后 */
+    return plan.dishes.slice().sort((a, b) => firstFrom(a) - firstFrom(b) || a.i - b.i).map((d) => d.name);
+  }
+  function firstFrom(d) { return d.prep ? d.prep.from : d.fire.from; }
+  function coldList(plan) { return plan.dishes.filter((d) => d.cold > 0).sort((a, b) => b.cold - a.cold || a.i - b.i); }
+
+  function summary(P, plan, S) {
+    const n = P.n, cl = coldList(plan);
+    let s = clock(plan.startAt) + ' 进厨房，' + clock(P.T) + ' 开饭';
+    if (!cl.length) s += '，' + (n === 1 ? '这道菜' : n + ' 道菜') + '上桌时都还热着。';
+    else s += '；这样排也只能做到：' + cl.slice(0, 3).map((d) => q(d.name) + '凉了 ' + d.cold + ' 分钟').join('、') + (cl.length > 3 ? ' 等 ' + cl.length + ' 道' : '') + '（等得比能放的久）。';
+    s += '先动手的是' + q(orderText(P, plan)[0]) + '，一共在厨房 ' + mins(plan.span) + '。';
+    if (S.capped) s += '（菜太多，试了 ' + fmtInt(NODE_CAP) + ' 种顺序还没试完，这是试过的里面最好的。）';
+    return s;
+  }
+  function facts(P, plan, alt, S) {
+    const F = [];
+    const idleHands = plan.span - plan.handsOn;
+    F.push('你动手 ' + mins(plan.handsOn) + '（备菜 + 守着火）' + (idleHands > 0 ? '，另外 ' + mins(idleHands) + '手上没活、在等锅里的' : '，中间一刻没停') + '。');
+    const early = plan.dishes.slice().sort((a, b) => b.wait - a.wait || a.i - b.i)[0];
+    if (early.wait > 0) F.push('最早做好的是' + q(early.name) + '，' + clock(early.done) + ' 就好了，要放 ' + early.wait + ' 分钟到开饭（能放 ' + early.hold + ' 分钟）。');
+    const idle = plan.dishes.filter((d) => d.idle > 0).sort((a, b) => b.idle - a.idle || a.i - b.i)[0];
+    if (idle) F.push(q(idle.name) + '的料备好后要等 ' + idle.idle + ' 分钟才下锅（那时候没空灶或你腾不出手）。');
+    alt.forEach((a) => {
+      const c = coldList(a.plan);
+      const d = a.plan.span - plan.span;
+      F.push('对照：' + a.name.split('（')[0] + '，要 ' + clock(a.plan.startAt) + ' 进厨房（' + (d > 0 ? '早 ' + d + ' 分钟' : d < 0 ? '晚 ' + (-d) + ' 分钟' : '一样') + '），' +
+        (c.length ? c.slice(0, 2).map((x) => q(x.name) + '凉 ' + x.cold + ' 分钟').join('、') + (c.length > 2 ? ' 等 ' + c.length + ' 道' : '') : '都不凉') + '。');
+    });
+    F.push('按整分钟排、试遍所有先后顺序（试了 ' + fmtInt(S.nodes) + ' 步），时长都是你自己填的估计。');
+    return F;
+  }
+
+  /* 建议：每条给出改过的输入（apply），代回去重算 */
+  function suggestions(st, r) {
+    const P = r.P, plan = r.plan, out = [];
+    const copy = (o) => JSON.parse(JSON.stringify(o));
+    const try1 = (apply) => { try { return calculate(apply); } catch (e) { return null; } };
+    const better = (a, b) => lexLess(a.plan.obj.slice(0, 2), b.plan.obj.slice(0, 2));
+    if (P.caps.stove < 6 && P.dishes.some((d) => d.dev === 'stove')) {
+      const a = copy(st); a.stoves = String(P.caps.stove + 1);
+      const x = try1(a);
+      if (x && better(x, r)) out.push({ id: 'stove', text: '多一个灶眼（' + P.caps.stove + ' → ' + (P.caps.stove + 1) + '，比如插个电磁炉）：' + effect(r, x), apply: a });
+    }
+    const pre = P.dishes.filter((d) => d.prep > 0).sort((a, b) => b.prep - a.prep || a.i - b.i)[0];
+    if (pre && !(pre.dev === 'none')) {
+      const a = copy(st); a.dishes[pre.i].prep = '0';
+      const x = try1(a);
+      if (x && better(x, r)) out.push({ id: 'prepAhead', text: '提前把' + q(pre.name) + '的料备好（中午切好放冰箱，备菜改 0）：' + effect(r, x), apply: a });
+    }
+    const cl = coldList(plan);
+    if (cl.length && P.n > 1) {
+      const d = cl[0];
+      const a = copy(st); a.dishes.splice(d.i, 1);
+      const x = try1(a);
+      if (x) out.push({ id: 'drop', text: q(d.name) + '这顿先不做：' + effect(r, x), apply: a });
+      const a2 = copy(st); a2.dishes[d.i].watch = false;
+      if (d.watch) { const y = try1(a2); if (y && better(y, r)) out.push({ id: 'unwatch', text: q(d.name) + '换个不用守着的做法（比如改成焖）：' + effect(r, y), apply: a2 }); }
+    }
+    return out;
+  }
+  function effect(r, x) {
+    const a = r.plan, b = x.plan, parts = [];
+    if (b.span !== a.span) parts.push(clock(b.startAt) + ' 进厨房（' + (b.span < a.span ? '晚 ' + (a.span - b.span) : '早 ' + (b.span - a.span)) + ' 分钟）');
+    else parts.push('进厨房时间不变');
+    const ca = coldList(a).length, cb = coldList(b);
+    if (ca && !cb.length) parts.push('不再有凉的菜');
+    else if (cb.length) parts.push('凉得最久 ' + b.maxCold + ' 分钟');
+    return parts.join('，');
+  }
+
+  /* ── 导出 ── */
+  function stepText(P, s) {
+    const d = P.dishes[s.dish];
+    if (s.kind === 'prep') return '备' + q(d.name) + '的料（' + s.len + ' 分钟）';
+    const dev = DEV_NAME[d.dev] + (d.dev === 'stove' || (P.caps[d.dev] > 1) ? ' ' + (s.unit + 1) : '');
+    return q(d.name) + '下' + (d.dev === 'stove' ? '锅' : d.dev === 'cooker' ? '电饭煲' : '烤箱') + '，' + dev + '，' + s.len + ' 分钟，' + (d.watch ? '要守着' : '不用守') + '；' + clock(s.to) + ' 好';
+  }
+  function timeline(r) {
+    const P = r.P;
+    return r.plan.steps.slice().sort((a, b) => a.from - b.from || (a.kind === 'prep') - (b.kind === 'prep') || a.dish - b.dish).map((s) => ({ at: clock(s.from), from: s.from, to: s.to, text: stepText(P, s), dish: s.dish, kind: s.kind }));
+  }
+  function csvCell(s) { s = String(s); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+  function toCSV(r, when) {
+    const L = [['先做哪道菜', when].map(csvCell).join(',')];
+    L.push(['钟点', '到', '这一步'].join(','));
+    timeline(r).forEach((t) => L.push([t.at, clock(t.to), t.text].map(csvCell).join(',')));
+    L.push('');
+    L.push(['菜', '做好', '放到开饭（分钟）', '能放（分钟）', '凉了（分钟）'].join(','));
+    r.plan.dishes.forEach((d) => L.push([d.name, clock(d.done), d.wait, d.hold, d.cold].map(csvCell).join(',')));
+    L.push('');
+    L.push(['做法', '进厨房', '在厨房（分钟）', '凉得最久（分钟）', '凉的道数'].join(','));
+    [{ name: '本页排法', plan: r.plan }].concat(r.alt).forEach((a) => L.push([a.name, clock(a.plan.startAt), a.plan.span, a.plan.maxCold, coldList(a.plan).length].map(csvCell).join(',')));
+    return L.join('\n') + '\n';
+  }
+  function toMD(r, when, sg) {
+    const L = ['# 先做哪道菜', '', '生成时间：' + when + '　开饭 ' + clock(r.P.T) + '　灶眼 ' + r.P.caps.stove + ' 个', '', '**' + r.summary + '**', '', '## 几点做什么', ''];
+    timeline(r).forEach((t) => L.push('- [ ] ' + t.at + '　' + t.text));
+    L.push('', '## 每道菜', '', '| 菜 | 做好 | 放到开饭 | 能放 | 凉了 |', '|---|---|---|---|---|');
+    r.plan.dishes.forEach((d) => L.push('| ' + d.name.replace(/\|/g, '/') + ' | ' + clock(d.done) + ' | ' + d.wait + ' 分钟 | ' + d.hold + ' 分钟 | ' + d.cold + ' 分钟 |'));
+    L.push('', '## 要点', '');
+    r.facts.forEach((f) => L.push('- ' + f));
+    if (sg && sg.length) { L.push('', '## 换个条件', ''); sg.forEach((s) => L.push('- ' + s.text)); }
+    L.push('', '时长是自己填的估计；按整分钟排，假设你同时只能干一件需要动手的事。');
+    return L.join('\n') + '\n';
+  }
+
+  const API = { DEVS, DEV_NAME, MAX_DISHES, NODE_CAP, parse, clock, mins, calculate, suggestions, solve, activities, buildPlan, orderOneByOne, orderPrepFirst, coldList, timeline, toCSV, toMD, lexLess, fmtInt };
+  if (typeof module !== 'undefined' && module.exports) module.exports = API;
+  else root.AppCore = API;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+  </script>
+  <script>
+/* 先做哪道菜 · 界面层 */
+(function () {
+  'use strict';
+  const C = window.AppCore;
+  const KEY = 'which-dish-first:v1';
+  const TOP = ['serve', 'stoves', 'cookers', 'ovens'];
+  const DF = ['name', 'prep', 'fire', 'dev', 'hold'];
+  const LIM = { serve: 5, stoves: 2, cookers: 2, ovens: 2, name: 16, prep: 4, fire: 4, dev: 8, hold: 4 };
+  const copy = (o) => JSON.parse(JSON.stringify(o));
+  const dish = (name, prep, fire, dev, watch, hold) => ({ name, prep: String(prep), fire: String(fire), dev, watch, hold: String(hold) });
+  const DEFAULT = { serve: '18:30', stoves: '2', cookers: '1', ovens: '0', dishes: [
+    dish('米饭', 5, 40, 'cooker', false, 30),
+    dish('红烧排骨', 15, 50, 'stove', false, 20),
+    dish('番茄炒蛋', 8, 6, 'stove', true, 5),
+    dish('清炒时蔬', 6, 5, 'stove', true, 3),
+    dish('冬瓜汤', 8, 15, 'stove', false, 15),
+    dish('拍黄瓜', 6, '', 'none', false, 40)
+  ] };
+  const PRESETS = [
+    ['默认：两个灶，六个菜，6 点半开饭', DEFAULT],
+    ['只有一个灶', Object.assign(copy(DEFAULT), { stoves: '1' })],
+    ['下班回家快手两菜一汤', { serve: '19:15', stoves: '2', cookers: '1', ovens: '0', dishes: [
+      dish('米饭', 3, 35, 'cooker', false, 30), dish('青椒肉丝', 10, 6, 'stove', true, 5), dish('蒜蓉西兰花', 5, 5, 'stove', true, 5), dish('紫菜蛋花汤', 3, 8, 'stove', false, 10)] }],
+    ['周末请客带烤箱', { serve: '12:00', stoves: '2', cookers: '1', ovens: '1', dishes: [
+      dish('米饭', 5, 40, 'cooker', false, 30), dish('烤鸡翅', 15, 25, 'oven', false, 15), dish('土豆炖牛腩', 20, 90, 'stove', false, 30),
+      dish('干煸豆角', 10, 12, 'stove', true, 8), dish('白灼虾', 10, 5, 'stove', true, 5), dish('凉拌木耳', 12, '', 'none', false, 60)] }]
+  ];
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  let state = copy(DEFAULT);
+  let last = null;
+
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* 隐私模式忽略 */ } }
+  function load() {
+    try {
+      const o = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (!o || typeof o !== 'object' || Array.isArray(o) || !Array.isArray(o.dishes) || o.dishes.length > C.MAX_DISHES) return null;
+      const s = {};
+      for (const k of TOP) { if (o[k] == null) return null; s[k] = String(o[k]).slice(0, LIM[k]); }
+      s.dishes = [];
+      for (const d of o.dishes) {
+        if (!d || typeof d !== 'object') return null;
+        const x = {};
+        for (const k of DF) { if (d[k] == null) return null; x[k] = String(d[k]).slice(0, LIM[k]); }
+        x.watch = d.watch === true;
+        s.dishes.push(x);
+      }
+      return s;
+    } catch (e) { return null; }
+  }
+
+  /* ── 菜单编辑 ── */
+  function buildMenu() {
+    const box = $('menu'); box.innerHTML = '';
+    state.dishes.forEach((d, i) => {
+      const row = document.createElement('div'); row.className = 'dish';
+      const k = 'd' + i + '-';
+      row.innerHTML =
+        '<div class="nm"><label for="' + k + 'name">第 ' + (i + 1) + ' 道</label><input id="' + k + 'name" maxlength="16"></div>' +
+        '<div><label for="' + k + 'dev">用什么做</label><select id="' + k + 'dev">' + C.DEVS.map((x) => '<option value="' + x.id + '">' + x.name + '</option>').join('') + '</select></div>' +
+        '<div><label for="' + k + 'prep">备菜分钟</label><input id="' + k + 'prep" inputmode="numeric" maxlength="4"></div>' +
+        '<div><label for="' + k + 'fire">上火分钟</label><input id="' + k + 'fire" inputmode="numeric" maxlength="4"></div>' +
+        '<div><label for="' + k + 'hold">能放几分钟</label><input id="' + k + 'hold" inputmode="numeric" maxlength="4"></div>' +
+        '<label class="w"><input type="checkbox" id="' + k + 'watch">守着</label>' +
+        '<button class="x" data-del="' + i + '" title="删掉这道">删</button>';
+      box.appendChild(row);
+      DF.forEach((f) => {
+        const el = $(k + f); el.value = d[f];
+        el.addEventListener(f === 'dev' ? 'change' : 'input', () => { state.dishes[i][f] = el.value; if (f === 'dev') syncRow(i); run(); });
+      });
+      const w = $(k + 'watch'); w.checked = !!d.watch;
+      w.addEventListener('change', () => { state.dishes[i].watch = w.checked; run(); });
+      row.querySelector('[data-del]').addEventListener('click', () => { state.dishes.splice(i, 1); buildMenu(); run(); });
+      syncRow(i);
+    });
+    $('add').disabled = state.dishes.length >= C.MAX_DISHES;
+  }
+  function syncRow(i) {
+    const k = 'd' + i + '-', none = state.dishes[i].dev === 'none';
+    $(k + 'fire').disabled = none; $(k + 'watch').disabled = none;
+    if (none) { $(k + 'fire').value = ''; state.dishes[i].fire = ''; $(k + 'watch').checked = false; state.dishes[i].watch = false; }
+  }
+  function fill() { TOP.forEach((k) => { $(k).value = state[k]; }); buildMenu(); }
+
+  /* ── 泳道 ── */
+  function laneRows(r) {
+    const P = r.P, rows = [{ id: 'cook', name: '你的手', steps: [] }];
+    ['stove', 'cooker', 'oven'].forEach((dev) => {
+      for (let u = 0; u < P.caps[dev]; u++) rows.push({ id: dev + u, name: C.DEV_NAME[dev] + (P.caps[dev] > 1 || dev === 'stove' ? ' ' + (u + 1) : ''), steps: [] });
+    });
+    r.plan.steps.forEach((s) => {
+      if (s.need.indexOf('cook') >= 0) rows[0].steps.push(s);
+      if (s.kind === 'fire') rows.find((x) => x.id === s.need[0] + s.unit).steps.push(s);
+    });
+    return rows;
+  }
+  function tickStep(span) { for (const s of [5, 10, 15, 30, 60, 120, 240, 480]) if (span / s <= 14) return s; return 960; }
+  function renderLanes(r) {
+    const P = r.P, t0 = r.plan.startAt, span = Math.max(1, r.plan.span);
+    const pc = (t) => ((t - t0) / span * 100).toFixed(3) + '%';
+    const step = tickStep(span), u = (step / span * 100).toFixed(4) + '%';
+    let h = '';
+    laneRows(r).forEach((ln) => {
+      h += '<div class="lane"><div class="ln">' + esc(ln.name) + '</div><div class="track" style="--u:' + u + '">';
+      ln.steps.forEach((s) => {
+        const d = P.dishes[s.dish];
+        const cls = s.kind === 'prep' ? 'prep' : d.watch ? 'fire' : 'calm';
+        const lab = (s.kind === 'prep' ? '切' : '') + d.name;
+        h += '<div class="blk ' + cls + '" style="left:' + pc(s.from) + ';width:' + pc(t0 + s.len) + '" title="' + esc(C.clock(s.from) + '–' + C.clock(s.to) + ' ' + lab) + '">' + esc(lab) + '</div>';
+      });
+      h += '<div class="blk serve" style="left:calc(100% - 3px)"></div></div></div>';
+    });
+    $('lanes').innerHTML = h;
+    $('taxis').innerHTML = '<span>' + C.clock(t0) + '</span><span>' + C.mins(span) + '</span><span>' + C.clock(P.T) + ' 开饭</span>';
+  }
+  function renderSteps(r) {
+    $('steps').innerHTML = C.timeline(r).map((t) => '<li class="' + t.kind + '"><b>' + esc(t.at) + '</b><span>' + esc(t.text) + '</span></li>').join('');
+  }
+  function cell(d) { return d.cold > 0 ? '<td class="cold">凉 ' + d.cold + ' 分钟</td>' : '<td class="warm">放 ' + d.wait + ' 分钟</td>'; }
+  function renderTable(r) {
+    const all = [{ name: '本页排法', plan: r.plan }].concat(r.alt.map((a) => ({ name: a.name.split('（')[0], plan: a.plan })));
+    let h = '<tr><th>菜（能放几分钟）</th>' + all.map((a) => '<th>' + esc(a.name) + '</th>').join('') + '</tr>';
+    r.P.dishes.forEach((d, i) => { h += '<tr><td>' + esc(d.name) + '（' + d.hold + '）</td>' + all.map((a) => cell(a.plan.dishes[i])).join('') + '</tr>'; });
+    h += '<tr><td>几点进厨房</td>' + all.map((a) => '<td>' + C.clock(a.plan.startAt) + '</td>').join('') + '</tr>';
+    $('tbl').innerHTML = h;
+  }
+  function sugList(sg) {
+    const box = $('sugs'); box.innerHTML = '';
+    sg.forEach((x) => {
+      const d = document.createElement('div'); d.className = 'sug';
+      d.innerHTML = '<span>' + esc(x.text) + '</span>';
+      const bt = document.createElement('button'); bt.textContent = '代回去排'; bt.dataset.sug = x.id;
+      bt.addEventListener('click', () => { state = copy(x.apply); fill(); run(); });
+      d.appendChild(bt); box.appendChild(d);
+    });
+    $('sugCard').style.display = sg.length ? '' : 'none';
+  }
+  function run() {
+    [].forEach.call(document.querySelectorAll('.bad'), (e) => e.classList.remove('bad'));
+    $('add').disabled = state.dishes.length >= C.MAX_DISHES;
+    try {
+      const r = C.calculate(state);
+      const sg = C.suggestions(state, r);
+      $('error').style.display = 'none'; $('out').style.display = '';
+      $('summary').textContent = r.summary;
+      $('facts').innerHTML = r.facts.map((f) => '<li>' + esc(f) + '</li>').join('');
+      renderLanes(r); renderSteps(r); renderTable(r); sugList(sg);
+      last = { r, sg };
+    } catch (e) {
+      last = null;
+      if (e.field) { const el = $(e.field); if (el) el.classList.add('bad'); }
+      $('error').textContent = '排不了：' + e.message; $('error').style.display = 'block';
+      $('out').style.display = 'none';
+    }
+    save();
+  }
+
+  /* ── 导出 ── */
+  function stamp() { const d = new Date(), z = (n) => String(n).padStart(2, '0'); return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()) + ' ' + z(d.getHours()) + ':' + z(d.getMinutes()); }
+  function download(name, blob) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); }
+  function wrap(g, t, w) {
+    const NOHEAD = '，。、；：！？）」』%·';
+    const out = []; let line = [];
+    const toks = String(t).match(/[+-]?[0-9][0-9,.:%]*|[A-Za-z_][A-Za-z0-9_.\-]*|[\s\S]/g) || [];
+    const width = (a) => g.measureText(a.join('')).width;
+    for (const tk of toks) {
+      if (line.length && width(line.concat([tk])) > w) {
+        let carry = [tk];
+        while (line.length > 1 && (NOHEAD.indexOf(carry[0][0]) >= 0 || '（「『'.indexOf(line[line.length - 1]) >= 0)) carry.unshift(line.pop());
+        out.push(line.join(''));
+        line = carry; if (/^\s+$/.test(line[0])) line.shift();
+      } else line.push(tk);
+    }
+    if (line.length) out.push(line.join('')); return out;
+  }
+  function fitText(g, t, w) {
+    if (g.measureText(t).width <= w) return t;
+    let s = t; while (s.length > 1 && g.measureText(s + '…').width > w) s = s.slice(0, -1);
+    return s + '…';
+  }
+  function drawPNG(Lx) {
+    const r = Lx.r, P = r.P, plan = r.plan;
+    const Wd = 1080, H = 1350, X = 80, TW = 920;
+    const cv = document.createElement('canvas'); cv.width = Wd; cv.height = H;
+    const g = cv.getContext('2d'), FF = '"PingFang SC","Microsoft YaHei",sans-serif';
+    g.fillStyle = '#f4efe6'; g.fillRect(0, 0, Wd, H);
+    g.fillStyle = '#fffdf8'; g.fillRect(40, 40, Wd - 80, H - 80);
+    g.fillStyle = '#776b59'; g.font = '24px ' + FF;
+    g.fillText(fitText(g, '先做哪道菜 · ' + P.n + ' 道菜 · 灶眼 ' + P.caps.stove + ' 个 · ' + C.clock(P.T) + ' 开饭', TW), X, 100);
+    g.fillStyle = '#2a241c'; g.font = 'bold 32px ' + FF;
+    let y = 152;
+    const sl = wrap(g, r.summary, TW);
+    if (sl.length > 4) { sl.length = 4; sl[3] = fitText(g, sl[3] + '……', TW); }
+    sl.forEach((l) => { g.fillText(l, X, y); y += 44; });
+    y += 10;
+    /* 泳道 */
+    const rows = laneRows(r), LW = 110, BW = TW - LW, RH = 46, t0 = plan.startAt, span = Math.max(1, plan.span);
+    const px = (t) => X + LW + (t - t0) / span * BW;
+    rows.forEach((ln) => {
+      g.fillStyle = '#6a5f4f'; g.font = '19px ' + FF; g.fillText(fitText(g, ln.name, LW - 12), X, y + 29);
+      g.fillStyle = '#f6f1e7'; g.fillRect(X + LW, y, BW, RH - 8);
+      ln.steps.forEach((s) => {
+        const d = P.dishes[s.dish];
+        g.fillStyle = s.kind === 'prep' ? '#8a6d3b' : d.watch ? '#c2551f' : '#d9894f';
+        const x0 = px(s.from), w = Math.max(2, px(s.to) - x0);
+        g.fillRect(x0 + 1, y + 2, w - 2, RH - 12);
+        g.save(); g.beginPath(); g.rect(x0 + 1, y, w - 4, RH); g.clip();
+        g.fillStyle = '#fff'; g.font = '16px ' + FF; g.fillText((s.kind === 'prep' ? '切' : '') + d.name, x0 + 5, y + 25); g.restore();
+      });
+      g.fillStyle = '#2a241c'; g.fillRect(X + LW + BW - 3, y - 2, 3, RH - 4);
+      y += RH;
+    });
+    g.fillStyle = '#776b59'; g.font = '18px ' + FF;
+    g.fillText(C.clock(t0), X + LW, y + 14);
+    const te = C.clock(P.T) + ' 开饭'; g.fillText(te, X + TW - g.measureText(te).width, y + 14);
+    y += 46;
+    /* 图例 */
+    let lx = X; g.font = '18px ' + FF;
+    [['#8a6d3b', '备菜（要动手）'], ['#c2551f', '上火、要守着'], ['#d9894f', '上火、不用守'], ['#2a241c', '开饭']].forEach(([c, t]) => {
+      g.fillStyle = c; g.fillRect(lx, y - 15, 16, 16); g.fillStyle = '#6a5f4f'; g.fillText(t, lx + 22, y); lx += 22 + g.measureText(t).width + 26;
+    });
+    y += 46;
+    /* 步骤单 */
+    g.fillStyle = '#6a5f4f'; g.font = '20px ' + FF; g.fillText('几点做什么', X, y); y += 34;
+    const tl = C.timeline(r), bottom = H - 300;
+    let shown = 0;
+    g.font = 'bold 21px ' + FF;
+    const AW = Math.max(90, Math.ceil(Math.max.apply(null, tl.map((t) => g.measureText(t.at).width))) + 18);
+    g.font = '21px ' + FF;
+    for (const t of tl) {
+      const ls = wrap(g, t.text, TW - AW);
+      if (y + ls.length * 30 > bottom) break;
+      g.fillStyle = '#2a241c'; g.font = 'bold 21px ' + FF; g.fillText(t.at, X, y);
+      g.font = '21px ' + FF; g.fillStyle = t.kind === 'fire' ? '#9a3d12' : '#2a241c';
+      ls.forEach((l, i) => g.fillText(l, X + AW, y + i * 30)); y += ls.length * 30 + 4; shown++;
+    }
+    if (shown < tl.length) { g.fillStyle = '#776b59'; g.font = '19px ' + FF; g.fillText('……还有 ' + (tl.length - shown) + ' 步，完整步骤见 Markdown', X, y); y += 30; }
+    /* 对照 */
+    y += 24;
+    g.fillStyle = '#6a5f4f'; g.font = '20px ' + FF; g.fillText('三种做法对照', X, y); y += 32;
+    [{ name: '本页排法', plan }].concat(r.alt.map((a) => ({ name: a.name.split('（')[0], plan: a.plan }))).forEach((a) => {
+      const c = C.coldList(a.plan);
+      const t = a.name + '：' + C.clock(a.plan.startAt) + ' 进厨房，' + (c.length ? c.length + ' 道凉，最久凉 ' + a.plan.maxCold + ' 分钟' : '都热着');
+      g.fillStyle = c.length ? '#8a2a1b' : '#2f5d1f'; g.font = '21px ' + FF; g.fillText(fitText(g, t, TW), X, y); y += 32;
+    });
+    g.fillStyle = '#776b59'; g.font = '18px ' + FF;
+    wrap(g, '时长是自己填的估计；按整分钟排，假设同一时刻只能做一件要动手的事。示例为虚构。', TW).forEach((l, i) => g.fillText(l, X, H - 84 + i * 26));
+    return Promise.resolve(cv);
+  }
+  function backup() {
+    const r = last.r;
+    return { app: '先做哪道菜', version: 1, savedAt: stamp(), input: copy(state),
+      result: { summary: r.summary, startAt: C.clock(r.plan.startAt), serve: C.clock(r.P.T), minutesInKitchen: r.plan.span, handsOnMinutes: r.plan.handsOn, maxColdMinutes: r.plan.maxCold, order: r.order, searchSteps: r.nodes, exhaustive: !r.capped,
+        timeline: C.timeline(r).map((t) => ({ at: t.at, until: C.clock(t.to), what: t.text })),
+        dishes: r.plan.dishes.map((d) => ({ name: d.name, done: C.clock(d.done), waitMinutes: d.wait, holdMinutes: d.hold, coldMinutes: d.cold })),
+        compare: r.alt.map((a) => ({ way: a.name, startAt: C.clock(a.plan.startAt), minutesInKitchen: a.plan.span, maxColdMinutes: a.plan.maxCold, coldDishes: C.coldList(a.plan).length })) } };
+  }
+  function init() {
+    TOP.forEach((k) => $(k).addEventListener('input', () => { state[k] = $(k).value; run(); }));
+    $('add').addEventListener('click', () => {
+      if (state.dishes.length >= C.MAX_DISHES) return;
+      state.dishes.push(dish('新的一道', 5, 8, 'stove', true, 5)); buildMenu(); run();
+    });
+    PRESETS.forEach((p) => {
+      const b = document.createElement('button'); b.className = 'ghost'; b.textContent = p[0];
+      b.addEventListener('click', () => { state = copy(p[1]); fill(); run(); });
+      $('presets').appendChild(b);
+    });
+    $('reset').addEventListener('click', () => { state = copy(DEFAULT); fill(); run(); });
+    $('dlCSV').addEventListener('click', () => { if (last) download('先做哪道菜.csv', new Blob(['\ufeff' + C.toCSV(last.r, stamp())], { type: 'text/csv;charset=utf-8' })); });
+    $('dlMD').addEventListener('click', () => { if (last) download('先做哪道菜.md', new Blob([C.toMD(last.r, stamp(), last.sg)], { type: 'text/markdown;charset=utf-8' })); });
+    $('dlJSON').addEventListener('click', () => { if (last) download('先做哪道菜-备份.json', new Blob([JSON.stringify(backup(), null, 2)], { type: 'application/json' })); });
+    $('dlPNG').addEventListener('click', () => { if (last) drawPNG(last).then((cv) => cv.toBlob((b) => download('先做哪道菜-1080x1350.png', b), 'image/png')); });
+    state = load() || copy(DEFAULT);
+    fill(); run();
+    window.__ex = { last: () => last, state: () => state, presets: PRESETS, DEFAULT };
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
+
+  </script>
+</body>
+</html>
